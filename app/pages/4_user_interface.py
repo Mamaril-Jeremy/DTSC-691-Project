@@ -6,6 +6,7 @@ from datetime import datetime
 import torch
 from transformers import pipeline
 import time
+from PyPDF2 import PdfReader
 
 # Page config
 st.set_page_config(
@@ -28,14 +29,16 @@ def load_artifacts():
         transformer = pkl.load(f)
     with open("../models/engagement_stats.pkl", "rb") as f:
         stats = pkl.load(f)
-    return model, transformer, stats
+    with open("../models/category_stats.pkl", "rb") as f:
+        category_stats = pkl.load(f)
+    return model, transformer, stats, category_stats
 
 
 @st.cache_resource
 def load_pipeline():
     return pipeline(
         "sentiment-analysis",
-        model="distilbert-base-uncased-finetuned-sst-2-english",
+        model="cardiffnlp/twitter-roberta-base-sentiment",
         device=-1
     )
 
@@ -45,9 +48,12 @@ def get_sentiment(pipe, text):
         return 0.0
     result = pipe(text[:512], truncation=True)[0]
     label, score = result["label"], result["score"]
-    pos = score if label == "POSITIVE" else 0.0
-    neg = score if label == "NEGATIVE" else 0.0
-    return pos - neg
+
+    if label in ("LABEL_2", "positive"):
+        return score
+    elif label in ("LABEL_0", "negative"):
+        return -score
+    return score
 
 
 def extract_title_features(title):
@@ -117,7 +123,7 @@ def get_engagement_band(rate):
 
 # Input page
 if st.session_state.stage == "input":
-    st.title("YouTube Engagement Benchmarker")
+    st.markdown(f"<span style='color: #cc0000; font-size:36px;'>YouTube Engagement Benchmarker</span>", unsafe_allow_html=True)
     st.markdown(
         "<p style='color:#888888;margin-top:-0.5rem;'>Compare your video's metadata against North American trending videos.</p>",
         unsafe_allow_html=True,
@@ -146,6 +152,18 @@ if st.session_state.stage == "input":
     with col4:
         date_to_post = st.date_input("Date to post")
 
+    st.text("")
+
+    st.markdown("Upload a transcript of your video content")
+
+    uploaded_file = st.file_uploader("Choose a PDF...", type="pdf")
+    transcript_data = ""
+
+    if uploaded_file is not None:
+        reader = PdfReader(uploaded_file)
+        for page in reader.pages:
+            transcript_data += page.extract_text() or ""
+
     comments_disabled = st.toggle("Comments disabled", value=False)
 
     st.divider()
@@ -171,6 +189,8 @@ if st.session_state.stage == "input":
             "comments_disabled": comments_disabled
         }
 
+        st.session_state.transcript = transcript_data
+
         st.session_state.stage = "processing"
         st.rerun()
 
@@ -179,43 +199,38 @@ if st.session_state.stage == "input":
 elif st.session_state.stage == "processing":
 
     st.markdown("## 🔍 Assessing your video...")
-
     progress = st.progress(0)
     status = st.empty()
 
-    steps = [
-        "Analyzing title sentiment...",
-        "Understanding description...",
-        "Evaluating pre-post metadata...",
-        "Running model prediction...",
-        "Finalizing insights..."
-    ]
-
-    for i, step in enumerate(steps):
-        status.text(step)
-        progress.progress((i + 1) / len(steps))
-        time.sleep(0.6)
-
-    st.session_state.stage = "results"
-    st.rerun()
-
-
-# Results page
-elif st.session_state.stage == "results":
-    time.sleep(0.6)
     inputs = st.session_state.inputs
-
-    model, transformer, stats = load_artifacts()
-    pipe = load_pipeline()
-
     title_input = inputs["title"]
     description_input = inputs["description"]
     tags_input = inputs["tags"]
     category_name = inputs["category_name"]
+    transcript = st.session_state.get("transcript", "")
 
-    # Feature engineering
+    status.text("Loading model artifacts...")
+    progress.progress(1 / 6)
+    model, transformer, stats, category_stats = load_artifacts()
+
+    status.text("Loading sentiment pipeline...")
+    progress.progress(2 / 6)
+    pipe = load_pipeline()
+
+    status.text("Analyzing title sentiment...")
+    progress.progress(3 / 6)
     title_sentiment = get_sentiment(pipe, title_input)
+
+    status.text("Analyzing description sentiment...")
+    progress.progress(4 / 6)
     description_sentiment = get_sentiment(pipe, description_input)
+
+    status.text("Analyzing video content...")
+    progress.progress(5 / 6)
+    transcript_sentiment = get_sentiment(pipe, transcript)
+
+    status.text("Running prediction...")
+    progress.progress(6 / 6)
 
     tag_count = len([t.strip() for t in tags_input.split(",") if t.strip()])
     title_length = len(title_input)
@@ -243,8 +258,45 @@ elif st.session_state.stage == "results":
 
     percentile_rank = int(np.searchsorted(stats["percentiles"], predicted_rate))
     percentile_rank = max(0, min(100, percentile_rank))
-
     band_label, band_color = get_engagement_band(predicted_rate)
+
+    st.session_state.results = {
+        "predicted_rate": predicted_rate,
+        "percentile_rank": percentile_rank,
+        "band_label": band_label,
+        "band_color": band_color,
+        "title_sentiment": title_sentiment,
+        "description_sentiment": description_sentiment,
+        "transcript_sentiment": transcript_sentiment,
+        "tag_count": tag_count,
+        "title_length": title_length,
+        "publish_hour": publish_hour,
+        "tf": tf,
+        "category_stats_mean": category_stats[category_name]
+    }
+
+    st.session_state.stage = "results"
+    st.rerun()
+
+# Results page
+elif st.session_state.stage == "results":
+
+    inputs = st.session_state.inputs
+    r = st.session_state.results
+
+    predicted_rate = r["predicted_rate"]
+    percentile_rank = r["percentile_rank"]
+    band_label = r["band_label"]
+    band_color = r["band_color"]
+
+    title_sentiment = r["title_sentiment"]
+    description_sentiment = r["description_sentiment"]
+    transcript_sentiment = r["transcript_sentiment"]
+
+    tag_count = r["tag_count"]
+    title_length = r["title_length"]
+    publish_hour = r["publish_hour"]
+    tf = r["tf"]
 
     # Results
     st.title("Results")
@@ -254,14 +306,13 @@ elif st.session_state.stage == "results":
 
     with c1:
         st.markdown("### To have")
-        #st.markdown(f"**{band_label}**")
         st.markdown(f"<span style='color:{band_color}'>{band_label}</span>", unsafe_allow_html=True)
         st.markdown("engagement rate")
 
     with c2:
-        st.markdown("### To engage")
+        st.markdown("### To get")
         st.markdown(f"**{predicted_rate * 100:.2f}%**")
-        st.markdown("of viewers")
+        st.markdown("of viewers to engage")
 
     with c3:
         st.markdown("### To beat")
@@ -276,38 +327,61 @@ elif st.session_state.stage == "results":
     st.caption(f"Your video is expected to be more engaging than {percentile_rank}% of trending videos.")
 
     chart_data = pd.DataFrame({
-        "Metric": ["Your Video", "Average"],
-        "Engagement Rate": [predicted_rate, stats["mean"]]
+        "Metric": ["Your Video", "Average in Category"],
+        "Engagement Rate": [predicted_rate, r["category_stats_mean"]]
     })
 
+    st.markdown(f"Here's how your video compares against other videos in the {inputs['category_name']} category.")
     st.bar_chart(chart_data.set_index("Metric"))
 
-    # Suggestions
+    # Critiques
     st.divider()
-    st.subheader("Improvement Suggestions")
 
-    suggestions = []
-
-    if predicted_rate < stats["mean"]:
-        suggestions.append("Your engagement is below average — improve your hook.")
-
+    st.subheader("Title Critiques")
     if title_length < 30:
-        suggestions.append("Try a longer title for more context.")
+        st.write("- Try a longer title for more context.")
 
-    if tf["title_has_number"] == 0:
-        suggestions.append("Try using a number in your title.")
+    if -0.4 < title_sentiment < 0.4:
+        st.write("- Try making your title less neutral")
+    else:
+        st.write("- Your title is engaging!")
 
-    if tf["title_has_exclamation"] == 0:
-        suggestions.append("Add punctuation (! or ?) to increase curiosity.")
+    if tf["title_has_number"]:
+        st.write("- Great job using a number in the title.")
+    else:
+        st.write("- Try using a number in your title.")
 
+    if tf["title_has_exclamation"] or tf["title_has_question"]:
+        st.write("- Great job using punctuation in your title!")
+    else:
+        st.write("- Add punctuation (! or ?) to your title to increase curiosity.")
+
+    st.subheader("Description Critiques")
+    if -0.4 < description_sentiment < 0.4:
+        st.write("- Try making your description less neutral")
+    else:
+        st.write("- Your description is engaging!")
+
+    st.subheader("Tag Critiques")
     if tag_count < 5:
-        suggestions.append("Add more tags to improve discoverability in the algorithm.")
+        st.write("- Add more tags to improve discoverability in the algorithm.")
+    else:
+        st.write("- Great job adding more than 5 tags!")
 
-    if not suggestions:
-        suggestions.append("Your video is well-optimized. Focus on thumbnail & video content.")
+    st.subheader("Transcript Critiques")
+    if -0.4 < transcript_sentiment < 0.4:
+        st.write("- Try making your video content less neutral")
+    else:
+        st.write("- Your video content is engaging!")
 
-    for s in suggestions:
-        st.markdown(f"- {s}")
+    st.subheader("Other Suggestions ")
+    if inputs["comments_disabled"]:
+        st.write("Try enabling comments!")
+    else:
+        st.write("Great job keeping comments enabled!")
+
+    if publish_hour in range(3, 11):
+        st.write("Try posting later in the day!")
 
     # Reset
     st.divider()

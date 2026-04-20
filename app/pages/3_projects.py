@@ -19,3 +19,8 @@ st.markdown("Created a swamp cooler that transitions through several states depe
 st.markdown("The states that the cooler is running in are running, idle, error, and disabled, and the current state it is running in is indicated by lighting the corresponding LED. Output is also displayed by the serial monitor and the LCD display.")
 st.markdown("Utilized the Arduino Mega 2560 and the corresponding software.")
 st.link_button(url="https://github.com/Mamaril-Jeremy/CPE-301-Final-Project", label="Swamp Cooler")
+
+st.subheader("CardHub Project")
+st.markdown("CardHub is a comprehensive web application designed to compile the most played card games into one online platform.")
+st.markdown("Created several parts of the UI/UX interface, most notably the navigation bar.")
+st.link_button(url="https://github.com/Arellano-Jann/cardhub-frontend", label="CardHub")

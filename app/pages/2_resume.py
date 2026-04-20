@@ -6,8 +6,8 @@ st.subheader("Education")
 st.markdown("**University of Nevada, Reno**")
 st.markdown("Aug 2021 to Dec 2024")
 st.markdown("- Graduated with a B.S. in Computer Science and Engineering and with a minor in Mathematics")
-st.markdown("- Dean’s list all semesters")
-st.markdown("- Member of the Honors College (1874 Scholar)")
+st.markdown("- Magna Cum Laude")
+st.markdown("- Member of the Honors College")
 
 st.text("")
 
