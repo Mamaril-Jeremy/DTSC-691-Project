@@ -1,3 +1,6 @@
+# Regular imports
+python-3.11
+
 # Data handling
 numpy
 pandas
@@ -12,7 +15,8 @@ xgboost
  
 # Deep learning
 tensorflow
-torch
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
 transformers
  
 # Streamlit UI
