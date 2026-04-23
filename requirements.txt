@@ -1,6 +1,3 @@
-# Regular imports
-python-3.11
-
 # Data handling
 numpy
 pandas
