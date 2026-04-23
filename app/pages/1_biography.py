@@ -1,8 +1,13 @@
 import streamlit as st
+from pathlib import Path
 
 st.title("About Me")
 st.subheader("Jeremy Mamaril")
-st.image("static/grad_pic.jpg")
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+image_path = BASE_DIR / "static" / "grad_pic.jpg"
+
+st.image(image_path)
 
 st.divider()
 

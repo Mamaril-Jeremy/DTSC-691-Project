@@ -1,3 +1,10 @@
+# AI USAGE CITATION
+# Tool: Gemini
+# Prompt: "Help me add different states here to allow the logic to progress. Include an in-between animation state.."
+# Usage: Used the state and configuration logic provided but developed the rest.
+
+
+# Necessary imports
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -33,7 +40,7 @@ def load_artifacts():
         category_stats = pkl.load(f)
     return model, transformer, stats, category_stats
 
-
+# Load sentiment pipeline
 @st.cache_resource
 def load_pipeline():
     return pipeline(
@@ -42,7 +49,7 @@ def load_pipeline():
         device=-1
     )
 
-
+# Calculate sentiment score
 def get_sentiment(pipe, text):
     if not text.strip():
         return 0.0
@@ -55,7 +62,7 @@ def get_sentiment(pipe, text):
         return -score
     return score
 
-
+# Extract title features
 def extract_title_features(title):
     letters = [c for c in title if c.isalpha()]
     total_letters = len(letters)
@@ -70,7 +77,7 @@ def extract_title_features(title):
         'title_has_number': int(any(c.isdigit() for c in title))
     }
 
-
+# Map categories to numeric
 category_map = {
     "Film & Animation": 1,
     "Autos & Vehicles": 2,
@@ -105,6 +112,7 @@ category_map = {
     "Trailers": 44,
 }
 
+# Engagement Categories
 engagement_categories = [
     (0.0,   "Very Low",  "#ef4444"),
     (0.01,  "Low",       "#eab308"),
@@ -113,7 +121,7 @@ engagement_categories = [
     (0.06,  "Very High", "#a855f7")
 ]
 
-
+# Get label and color from engagement category
 def get_engagement_band(rate):
     for threshold, label, color in reversed(engagement_categories):
         if rate >= threshold:
@@ -123,7 +131,7 @@ def get_engagement_band(rate):
 
 # Input page
 if st.session_state.stage == "input":
-    st.markdown(f"<span style='color: #cc0000; font-size:36px;'>YouTube Engagement Benchmarker</span>", unsafe_allow_html=True)
+    st.markdown(f"<span style='color: #cc0000; font-size:36px;'>YouTube Engagement Benchmarker 🎯</span>", unsafe_allow_html=True)
     st.markdown(
         "<p style='color:#888888;margin-top:-0.5rem;'>Compare your video's metadata against North American trending videos.</p>",
         unsafe_allow_html=True,
@@ -163,6 +171,8 @@ if st.session_state.stage == "input":
         reader = PdfReader(uploaded_file)
         for page in reader.pages:
             transcript_data += page.extract_text() or ""
+    else:
+        st.warning("Please upload a video transcript.")
 
     comments_disabled = st.toggle("Comments disabled", value=False)
 
@@ -383,7 +393,7 @@ elif st.session_state.stage == "results":
     if publish_hour in range(3, 11):
         st.write("Try posting later in the day!")
 
-    # Reset
+    # Allow user to add another video
     st.divider()
     if st.button("Try another video"):
         st.session_state.stage = "input"
