@@ -1,0 +1,22 @@
+# Data handling
+numpy
+pandas
+ 
+# Visualization (notebook only)
+matplotlib
+seaborn
+ 
+# Machine learning
+scikit-learn
+xgboost
+ 
+# Deep learning
+tensorflow
+torch
+transformers
+ 
+# Streamlit UI
+streamlit
+ 
+# PDF parsing
+PyPDF2
